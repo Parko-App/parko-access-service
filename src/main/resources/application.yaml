@@ -1,0 +1,13 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: access.service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/parko_db}
+    username: ${DB_USERNAME:user}
+    password: ${DB_PASSWORD:password}
+  jpa:
+    hibernate:
+      ddl-auto: update

@@ -42,7 +42,7 @@ class AccessControllerTest {
         AccessResponse response = new AccessResponse(AccessResult.AUTHORIZED, AccessEventType.ENTRY, null);
         when(accessService.resolveAccess(any(AccessRequest.class))).thenReturn(response);
 
-        mockMvc.perform(post("/api/access")
+        mockMvc.perform(post("/api/v1/access")
                         .contentType("application/json")
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -56,7 +56,7 @@ class AccessControllerTest {
         AccessResponse response = new AccessResponse(AccessResult.DENIED, AccessEventType.ENTRY, "Patente no registrada: ZZ999ZZ");
         when(accessService.resolveAccess(any(AccessRequest.class))).thenReturn(response);
 
-        mockMvc.perform(post("/api/access")
+        mockMvc.perform(post("/api/v1/access")
                         .contentType("application/json")
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -69,7 +69,7 @@ class AccessControllerTest {
         when(accessService.resolveAccess(any(AccessRequest.class)))
                 .thenThrow(new IllegalArgumentException("No hay estrategia registrada para null"));
 
-        mockMvc.perform(post("/api/access")
+        mockMvc.perform(post("/api/v1/access")
                         .contentType("application/json")
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
@@ -81,7 +81,7 @@ class AccessControllerTest {
         when(accessService.resolveAccess(any(AccessRequest.class)))
                 .thenThrow(new IllegalArgumentException("La patente es requerida para el método PLATE"));
 
-        mockMvc.perform(post("/api/access")
+        mockMvc.perform(post("/api/v1/access")
                         .contentType("application/json")
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());

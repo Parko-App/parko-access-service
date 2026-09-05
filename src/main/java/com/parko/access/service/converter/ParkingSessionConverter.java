@@ -15,6 +15,7 @@ public final class ParkingSessionConverter {
                 session.getId(),
                 session.getVehicleId(),
                 session.getPlateSnapshot(),
+                session.getVisitorPlate(),
                 session.getSessionType(),
                 session.getStatus(),
                 session.getEntryAt(),

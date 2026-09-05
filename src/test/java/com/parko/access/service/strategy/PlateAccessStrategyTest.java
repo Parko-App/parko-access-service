@@ -1,13 +1,23 @@
 package com.parko.access.service.strategy;
 
+import com.parko.access.service.client.BalanceClient;
+import com.parko.access.service.dto.balance.ChargeRequest;
 import com.parko.access.service.dto.request.AccessRequest;
 import com.parko.domain.lib.model.AccessEventType;
 import com.parko.domain.lib.model.AccessMethod;
 import com.parko.domain.lib.model.AccessResult;
 import com.parko.domain.lib.model.SessionStatus;
+import com.parko.domain.lib.model.TicketStatus;
+import com.parko.domain.lib.model.TransactionStatus;
+import com.parko.domain.lib.model.TransactionType;
 import com.parko.persistence.core.model.entity.ParkingSessionEntity;
+import com.parko.persistence.core.model.entity.TicketEntity;
+import com.parko.persistence.core.model.entity.TransactionEntity;
+import com.parko.persistence.core.model.entity.UserEntity;
 import com.parko.persistence.core.model.entity.VehicleEntity;
 import com.parko.persistence.core.repository.ParkingSessionRepository;
+import com.parko.persistence.core.repository.TicketRepository;
+import com.parko.persistence.core.repository.TransactionRepository;
 import com.parko.persistence.core.repository.VehicleRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,6 +26,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -29,17 +42,39 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class PlateAccessStrategyTest {
 
+    private static final BigDecimal ENTRY_FEE = BigDecimal.valueOf(500);
+
     @Mock
     private VehicleRepository vehicleRepository;
 
     @Mock
     private ParkingSessionRepository parkingSessionRepository;
 
+    @Mock
+    private TransactionRepository transactionRepository;
+
+    @Mock
+    private TicketRepository ticketRepository;
+
+    @Mock
+    private BalanceClient balanceClient;
+
     private PlateAccessStrategy strategy;
 
     @BeforeEach
     void setUp() {
-        strategy = new PlateAccessStrategy(vehicleRepository, parkingSessionRepository);
+        strategy = new PlateAccessStrategy(vehicleRepository, parkingSessionRepository,
+                transactionRepository, ticketRepository, balanceClient, ENTRY_FEE);
+    }
+
+    private VehicleEntity vehicleWithUser(UUID vehicleId, UUID userId) {
+        UserEntity user = new UserEntity();
+        user.setId(userId);
+        VehicleEntity vehicle = new VehicleEntity();
+        vehicle.setId(vehicleId);
+        vehicle.setActive(true);
+        vehicle.setUser(user);
+        return vehicle;
     }
 
     private AccessRequest request(String identifier) {
@@ -52,14 +87,20 @@ class PlateAccessStrategyTest {
     }
 
     @Test
-    void resolve_activeSessionExists_completesSessionAndReturnsExitAuthorized() {
+    void resolve_activeSessionExistsAndUnpaid_completesSessionAndRetriesCharge() {
         String plate = "AB123CD";
+        UUID vehicleId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
         ParkingSessionEntity session = new ParkingSessionEntity();
         session.setId(UUID.randomUUID());
         session.setPlateSnapshot(plate);
         session.setStatus(SessionStatus.ACTIVE);
+        session.setVehicle(vehicleWithUser(vehicleId, userId));
         when(parkingSessionRepository.findByPlateSnapshotAndStatus(plate, SessionStatus.ACTIVE))
                 .thenReturn(Optional.of(session));
+        when(transactionRepository.existsByParkingSession_IdAndTypeAndStatus(
+                session.getId(), TransactionType.CHARGE, TransactionStatus.COMPLETED))
+                .thenReturn(false);
 
         AccessDecision decision = strategy.resolve(request(plate));
 
@@ -70,15 +111,54 @@ class PlateAccessStrategyTest {
         assertThat(session.getExitAt()).isNotNull();
         verify(parkingSessionRepository).save(session);
         verify(vehicleRepository, never()).findByPlate(any());
+        verify(balanceClient).charge(new ChargeRequest(userId, session.getId(), ENTRY_FEE));
     }
 
     @Test
-    void resolve_noActiveSessionAndVehicleRegistered_createsSessionAndReturnsEntryAuthorized() {
+    void resolve_activeSessionExistsAndAlreadyPaid_completesSessionWithoutRetryingCharge() {
+        String plate = "AB123CD";
+        ParkingSessionEntity session = new ParkingSessionEntity();
+        session.setId(UUID.randomUUID());
+        session.setPlateSnapshot(plate);
+        session.setStatus(SessionStatus.ACTIVE);
+        session.setVehicle(vehicleWithUser(UUID.randomUUID(), UUID.randomUUID()));
+        when(parkingSessionRepository.findByPlateSnapshotAndStatus(plate, SessionStatus.ACTIVE))
+                .thenReturn(Optional.of(session));
+        when(transactionRepository.existsByParkingSession_IdAndTypeAndStatus(
+                session.getId(), TransactionType.CHARGE, TransactionStatus.COMPLETED))
+                .thenReturn(true);
+
+        AccessDecision decision = strategy.resolve(request(plate));
+
+        assertThat(decision.result()).isEqualTo(AccessResult.AUTHORIZED);
+        assertThat(decision.eventType()).isEqualTo(AccessEventType.EXIT);
+        verify(balanceClient, never()).charge(any());
+    }
+
+    @Test
+    void resolve_chargeFails_stillReturnsAuthorized() {
+        String plate = "AB123CD";
+        VehicleEntity vehicle = vehicleWithUser(UUID.randomUUID(), UUID.randomUUID());
+        when(parkingSessionRepository.findByPlateSnapshotAndStatus(plate, SessionStatus.ACTIVE))
+                .thenReturn(Optional.empty());
+        when(vehicleRepository.findByPlate(plate)).thenReturn(Optional.of(vehicle));
+        when(parkingSessionRepository.save(any(ParkingSessionEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(balanceClient.charge(any())).thenThrow(new RuntimeException("balance-service no disponible"));
+
+        AccessDecision decision = strategy.resolve(request(plate));
+
+        assertThat(decision.result()).isEqualTo(AccessResult.AUTHORIZED);
+        assertThat(decision.eventType()).isEqualTo(AccessEventType.ENTRY);
+        verify(ticketRepository).save(any(TicketEntity.class));
+    }
+
+    @Test
+    void resolve_noActiveSessionAndVehicleRegistered_createsSessionChargesEntryFeeAndReturnsEntryAuthorized() {
         String plate = "AB123CD";
         UUID vehicleId = UUID.randomUUID();
-        VehicleEntity vehicle = new VehicleEntity();
-        vehicle.setId(vehicleId);
-        vehicle.setActive(true);
+        UUID userId = UUID.randomUUID();
+        VehicleEntity vehicle = vehicleWithUser(vehicleId, userId);
         when(parkingSessionRepository.findByPlateSnapshotAndStatus(plate, SessionStatus.ACTIVE))
                 .thenReturn(Optional.empty());
         when(vehicleRepository.findByPlate(plate)).thenReturn(Optional.of(vehicle));
@@ -96,6 +176,48 @@ class PlateAccessStrategyTest {
         assertThat(captor.getValue().getPlateSnapshot()).isEqualTo(plate);
         assertThat(captor.getValue().getVehicle().getId()).isEqualTo(vehicleId);
         assertThat(captor.getValue().getStatus()).isEqualTo(SessionStatus.ACTIVE);
+        verify(balanceClient).charge(new ChargeRequest(userId, decision.parkingSessionId(), ENTRY_FEE));
+
+        ArgumentCaptor<TicketEntity> ticketCaptor = ArgumentCaptor.forClass(TicketEntity.class);
+        verify(ticketRepository).save(ticketCaptor.capture());
+        assertThat(ticketCaptor.getValue().getParkingSession().getId()).isEqualTo(decision.parkingSessionId());
+        assertThat(ticketCaptor.getValue().getStatus()).isEqualTo(TicketStatus.PENDING_PAYMENT);
+        assertThat(ticketCaptor.getValue().getTicketNumber()).startsWith("TCK-");
+    }
+
+    @Test
+    void resolve_chargeCompletesAtEntry_marksTicketAsPaid() {
+        String plate = "AB123CD";
+        UUID vehicleId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID operationId = UUID.randomUUID();
+        VehicleEntity vehicle = vehicleWithUser(vehicleId, userId);
+        when(parkingSessionRepository.findByPlateSnapshotAndStatus(plate, SessionStatus.ACTIVE))
+                .thenReturn(Optional.empty());
+        when(vehicleRepository.findByPlate(plate)).thenReturn(Optional.of(vehicle));
+        when(parkingSessionRepository.save(any(ParkingSessionEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(balanceClient.charge(any())).thenReturn(operationId);
+        TransactionEntity completedTransaction = new TransactionEntity();
+        completedTransaction.setStatus(TransactionStatus.COMPLETED);
+        when(transactionRepository.findById(operationId)).thenReturn(Optional.of(completedTransaction));
+
+        List<TicketEntity> savedTickets = new ArrayList<>();
+        when(ticketRepository.save(any(TicketEntity.class))).thenAnswer(invocation -> {
+            TicketEntity entity = invocation.getArgument(0);
+            savedTickets.add(entity);
+            return entity;
+        });
+        when(ticketRepository.findByParkingSession_Id(any()))
+                .thenAnswer(invocation -> savedTickets.isEmpty()
+                        ? Optional.empty()
+                        : Optional.of(savedTickets.get(savedTickets.size() - 1)));
+
+        strategy.resolve(request(plate));
+
+        TicketEntity finalState = savedTickets.get(savedTickets.size() - 1);
+        assertThat(finalState.getStatus()).isEqualTo(TicketStatus.PAID);
+        assertThat(finalState.getPaidAt()).isNotNull();
     }
 
     @Test

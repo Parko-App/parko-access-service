@@ -11,3 +11,9 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
+
+balance-service:
+  base-url: ${BALANCE_SERVICE_URL:http://localhost:8082}
+
+parking:
+  entry-fee: ${PARKING_ENTRY_FEE:1500}

@@ -11,7 +11,6 @@ import com.parko.persistence.core.model.embedded.AccessLogEmbedded;
 import com.parko.persistence.core.model.entity.AccessLogEntity;
 import com.parko.persistence.core.repository.AccessLogRepository;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -32,7 +31,6 @@ public class AccessService {
         this.accessLogRepository = accessLogRepository;
     }
 
-    @Transactional
     public AccessResponse resolveAccess(AccessRequest request) {
         AccessResolutionStrategy strategy = strategies.get(request.accessMethod());
         if (strategy == null) {

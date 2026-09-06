@@ -9,7 +9,8 @@ import java.util.UUID;
 
 @FeignClient(
         name = "balance-service",
-        url = "${balance-service.base-url}"
+        url = "${balance-service.base-url}",
+        configuration = BalanceClientFeignConfig.class
 )
 public interface BalanceClient {
 

@@ -9,6 +9,7 @@ public record AccessDecision(
         AccessResult result,
         AccessEventType eventType,
         UUID parkingSessionId,
-        String message
+        String message,
+        byte[] ticketPdf
 ) {
 }

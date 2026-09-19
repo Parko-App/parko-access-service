@@ -78,7 +78,7 @@ class PlateAccessStrategyTest {
     }
 
     private AccessRequest request(String identifier) {
-        return new AccessRequest(AccessMethod.PLATE, identifier, "device-1", null);
+        return new AccessRequest(AccessMethod.PLATE, identifier, "device-1", null, null);
     }
 
     @Test

@@ -80,7 +80,7 @@ public class PlateAccessStrategy implements AccessResolutionStrategy {
 
         Optional<VehicleEntity> vehicle = vehicleRepository.findByPlate(plate).filter(VehicleEntity::isActive);
         return vehicle.map(vehicleEntity -> resolveEntry(vehicleEntity, plate)).orElseGet(() -> new AccessDecision(AccessResult.DENIED, AccessEventType.ENTRY, null,
-                "Patente no registrada: " + plate));
+                "Patente no registrada: " + plate, null));
 
     }
 
@@ -98,7 +98,7 @@ public class PlateAccessStrategy implements AccessResolutionStrategy {
             chargeEntryFeeAndUpdateTicket(sessionEntity.getVehicle(), sessionEntity.getId());
         }
 
-        return new AccessDecision(AccessResult.AUTHORIZED, AccessEventType.EXIT, sessionEntity.getId(), null);
+        return new AccessDecision(AccessResult.AUTHORIZED, AccessEventType.EXIT, sessionEntity.getId(), null, null);
     }
 
     private AccessDecision resolveEntry(VehicleEntity vehicle, String plate) {
@@ -112,7 +112,7 @@ public class PlateAccessStrategy implements AccessResolutionStrategy {
         createTicket(saved.getId(), now);
         chargeEntryFeeAndUpdateTicket(vehicle, saved.getId());
 
-        return new AccessDecision(AccessResult.AUTHORIZED, AccessEventType.ENTRY, saved.getId(), null);
+        return new AccessDecision(AccessResult.AUTHORIZED, AccessEventType.ENTRY, saved.getId(), null, null);
     }
 
     private void createTicket(UUID parkingSessionId, LocalDateTime now) {

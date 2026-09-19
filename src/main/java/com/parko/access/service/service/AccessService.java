@@ -13,6 +13,7 @@ import com.parko.persistence.core.repository.AccessLogRepository;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -55,6 +56,9 @@ public class AccessService {
         AccessLogEntity entity = com.parko.persistence.core.converters.AccessLogConverter.toEntity(embedded);
         accessLogRepository.save(entity);
 
-        return new AccessResponse(decision.result(), decision.eventType(), decision.message());
+        String ticketPdfBase64 = decision.ticketPdf() != null
+                ? Base64.getEncoder().encodeToString(decision.ticketPdf())
+                : null;
+        return new AccessResponse(decision.result(), decision.eventType(), decision.message(), ticketPdfBase64);
     }
 }

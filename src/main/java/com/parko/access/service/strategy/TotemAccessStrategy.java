@@ -17,24 +17,33 @@ import com.parko.persistence.core.model.entity.ParkingSessionEntity;
 import com.parko.persistence.core.model.entity.TicketEntity;
 import com.parko.persistence.core.repository.ParkingSessionRepository;
 import com.parko.persistence.core.repository.TicketRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Component
 public class TotemAccessStrategy implements AccessResolutionStrategy {
 
+    private static final Pattern UUID_PATTERN = Pattern.compile(
+            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
+
     private final ParkingSessionRepository parkingSessionRepository;
     private final TicketRepository ticketRepository;
     private final TicketPdfService ticketPdfService;
+    private final String publicBaseUrl;
 
     public TotemAccessStrategy(ParkingSessionRepository parkingSessionRepository, TicketRepository ticketRepository,
-                                TicketPdfService ticketPdfService) {
+                                TicketPdfService ticketPdfService,
+                                @Value("${access-service.public-base-url}") String publicBaseUrl) {
         this.parkingSessionRepository = parkingSessionRepository;
         this.ticketRepository = ticketRepository;
         this.ticketPdfService = ticketPdfService;
+        this.publicBaseUrl = publicBaseUrl;
     }
 
     @Override
@@ -59,15 +68,20 @@ public class TotemAccessStrategy implements AccessResolutionStrategy {
         ParkingSessionEntity entity = com.parko.persistence.core.converters.ParkingSessionConverter.toEntity(embedded);
         ParkingSessionEntity saved = parkingSessionRepository.save(entity);
 
-        String ticketNumber = createTicket(saved.getId(), now);
-        byte[] ticketPdf = ticketPdfService.generateVisitorTicket(ticketNumber, visitorPlate, now);
+        String paymentUrl = buildPaymentUrl(saved.getId());
+        String ticketNumber = createTicket(saved.getId(), now, paymentUrl);
+        byte[] ticketPdf = ticketPdfService.generateVisitorTicket(ticketNumber, visitorPlate, now, paymentUrl);
 
         return new AccessDecision(AccessResult.AUTHORIZED, AccessEventType.ENTRY, saved.getId(), null, ticketPdf);
     }
 
-    private String createTicket(UUID parkingSessionId, LocalDateTime now) {
+    private String buildPaymentUrl(UUID parkingSessionId) {
+        return publicBaseUrl + "/api/v1/access/sessions/" + parkingSessionId + "/pay";
+    }
+
+    private String createTicket(UUID parkingSessionId, LocalDateTime now, String paymentUrl) {
         String ticketNumber = generateTicketNumber();
-        Ticket ticket = new Ticket(parkingSessionId, ticketNumber, generateQrData(parkingSessionId), now);
+        Ticket ticket = new Ticket(parkingSessionId, ticketNumber, paymentUrl, now);
         TicketEmbedded embedded = TicketConverter.toEmbedded(ticket, now, now);
         TicketEntity entity = com.parko.persistence.core.converters.TicketConverter.toEntity(embedded);
         ticketRepository.save(entity);
@@ -75,10 +89,8 @@ public class TotemAccessStrategy implements AccessResolutionStrategy {
     }
 
     private AccessDecision resolveExit(String identifier) {
-        UUID parkingSessionId;
-        try {
-            parkingSessionId = UUID.fromString(identifier);
-        } catch (IllegalArgumentException e) {
+        UUID parkingSessionId = extractParkingSessionId(identifier);
+        if (parkingSessionId == null) {
             return new AccessDecision(AccessResult.DENIED, AccessEventType.EXIT, null, "Ticket inválido: " + identifier, null);
         }
 
@@ -113,8 +125,16 @@ public class TotemAccessStrategy implements AccessResolutionStrategy {
         return "TCK-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
     }
 
-    private String generateQrData(UUID parkingSessionId) {
-        return parkingSessionId.toString();
+    private UUID extractParkingSessionId(String identifier) {
+        Matcher matcher = UUID_PATTERN.matcher(identifier);
+        if (!matcher.find()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(matcher.group());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     private String normalizePlate(String plate) {

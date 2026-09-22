@@ -33,6 +33,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class TotemAccessStrategyTest {
 
+    private static final String PUBLIC_BASE_URL = "http://localhost:8081";
+
     @Mock
     private ParkingSessionRepository parkingSessionRepository;
 
@@ -46,7 +48,7 @@ class TotemAccessStrategyTest {
 
     @BeforeEach
     void setUp() {
-        strategy = new TotemAccessStrategy(parkingSessionRepository, ticketRepository, ticketPdfService);
+        strategy = new TotemAccessStrategy(parkingSessionRepository, ticketRepository, ticketPdfService, PUBLIC_BASE_URL);
     }
 
     private AccessRequest request(String identifier) {
@@ -100,6 +102,8 @@ class TotemAccessStrategyTest {
         verify(ticketRepository).save(ticketCaptor.capture());
         assertThat(ticketCaptor.getValue().getStatus()).isEqualTo(TicketStatus.PENDING_PAYMENT);
         assertThat(ticketCaptor.getValue().getParkingSession().getId()).isEqualTo(decision.parkingSessionId());
+        assertThat(ticketCaptor.getValue().getQrData())
+                .isEqualTo(PUBLIC_BASE_URL + "/api/v1/access/sessions/" + decision.parkingSessionId() + "/pay");
     }
 
     @Test
@@ -119,19 +123,21 @@ class TotemAccessStrategyTest {
     }
 
     @Test
-    void resolve_blankIdentifier_returnsGeneratedTicketPdf() {
+    void resolve_blankIdentifier_returnsGeneratedTicketPdfWithPaymentUrl() {
         byte[] pdfBytes = {1, 2, 3};
+        UUID sessionId = UUID.randomUUID();
         when(parkingSessionRepository.save(any())).thenAnswer(invocation -> {
             ParkingSessionEntity entity = invocation.getArgument(0);
-            entity.setId(UUID.randomUUID());
+            entity.setId(sessionId);
             return entity;
         });
-        when(ticketPdfService.generateVisitorTicket(any(), any(), any())).thenReturn(pdfBytes);
+        when(ticketPdfService.generateVisitorTicket(any(), any(), any(), any())).thenReturn(pdfBytes);
 
         AccessDecision decision = strategy.resolve(request(null, "AB123CD"));
 
         assertThat(decision.ticketPdf()).isEqualTo(pdfBytes);
-        verify(ticketPdfService).generateVisitorTicket(any(), eq("AB123CD"), any());
+        verify(ticketPdfService).generateVisitorTicket(any(), eq("AB123CD"), any(),
+                eq(PUBLIC_BASE_URL + "/api/v1/access/sessions/" + sessionId + "/pay"));
     }
 
     @Test
@@ -198,5 +204,21 @@ class TotemAccessStrategyTest {
         assertThat(session.getExitAt()).isNotNull();
         verify(ticketRepository).save(paidTicket);
         verify(parkingSessionRepository).save(session);
+    }
+
+    @Test
+    void resolve_exitScannedAsFullPaymentUrl_extractsSessionIdAndProceeds() {
+        UUID sessionId = UUID.randomUUID();
+        TicketEntity paidTicket = ticket(TicketStatus.PAID);
+        ParkingSessionEntity session = activeSession(sessionId);
+        when(ticketRepository.findByParkingSession_Id(sessionId)).thenReturn(Optional.of(paidTicket));
+        when(parkingSessionRepository.findById(sessionId)).thenReturn(Optional.of(session));
+        String scannedUrl = PUBLIC_BASE_URL + "/api/v1/access/sessions/" + sessionId + "/pay";
+
+        AccessDecision decision = strategy.resolve(request(scannedUrl));
+
+        assertThat(decision.result()).isEqualTo(AccessResult.AUTHORIZED);
+        assertThat(decision.eventType()).isEqualTo(AccessEventType.EXIT);
+        assertThat(decision.parkingSessionId()).isEqualTo(sessionId);
     }
 }

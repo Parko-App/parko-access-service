@@ -1,5 +1,12 @@
 package com.parko.access.service.pdf;
 
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.EncodeHintType;
+import com.google.zxing.WriterException;
+import com.google.zxing.client.j2se.MatrixToImageWriter;
+import com.google.zxing.common.BitMatrix;
+import com.google.zxing.qrcode.QRCodeWriter;
+import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
@@ -7,8 +14,11 @@ import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.graphics.image.LosslessFactory;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.springframework.stereotype.Component;
 
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -16,6 +26,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Component
 public class TicketPdfService {
@@ -28,7 +39,7 @@ public class TicketPdfService {
     private static final float MARGIN = 15f;
     private static final float CONTENT_WIDTH = PAGE_WIDTH - 2 * MARGIN;
 
-    public byte[] generateVisitorTicket(String ticketNumber, String visitorPlate, LocalDateTime entryAt) {
+    public byte[] generateVisitorTicket(String ticketNumber, String visitorPlate, LocalDateTime entryAt, String paymentUrl) {
         try (PDDocument document = new PDDocument()) {
             PDPage page = new PDPage(new PDRectangle(PAGE_WIDTH, 340f));
             document.addPage(page);
@@ -49,7 +60,7 @@ public class TicketPdfService {
                         "DEBE ABONAR ESTE TICKET ANTES DE SALIR DEL ESTACIONAMIENTO", y);
                 y -= 15;
 
-                drawPlaceholderQr(content, y);
+                drawQrCode(document, content, paymentUrl, y);
             }
 
             ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -104,12 +115,26 @@ public class TicketPdfService {
         return lines;
     }
 
-    private void drawPlaceholderQr(PDPageContentStream content, float y) throws IOException {
-        float qrSize = 80f;
+    private void drawQrCode(PDDocument document, PDPageContentStream content, String paymentUrl, float y) throws IOException {
+        int qrSize = 80;
         float qrX = MARGIN + (CONTENT_WIDTH - qrSize) / 2;
         float qrY = y - qrSize;
-        content.addRect(qrX, qrY, qrSize, qrSize);
-        content.stroke();
-        writeAt(content, FONT_REGULAR, 8, "QR", qrX + qrSize / 2 - 6, qrY + qrSize / 2 - 4);
+
+        BufferedImage qrImage = renderQrCode(paymentUrl, qrSize);
+        PDImageXObject pdImage = LosslessFactory.createFromImage(document, qrImage);
+        content.drawImage(pdImage, qrX, qrY, qrSize, qrSize);
+    }
+
+    private BufferedImage renderQrCode(String data, int size) {
+        try {
+            Map<EncodeHintType, Object> hints = Map.of(
+                    EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M,
+                    EncodeHintType.MARGIN, 0
+            );
+            BitMatrix bitMatrix = new QRCodeWriter().encode(data, BarcodeFormat.QR_CODE, size, size, hints);
+            return MatrixToImageWriter.toBufferedImage(bitMatrix);
+        } catch (WriterException e) {
+            throw new IllegalStateException("No se pudo generar el QR del ticket", e);
+        }
     }
 }

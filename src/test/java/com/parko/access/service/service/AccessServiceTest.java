@@ -47,8 +47,8 @@ class AccessServiceTest {
     @Test
     void resolveAccess_authorizedEntry_savesAccessLogAndReturnsResponse() {
         UUID sessionId = UUID.randomUUID();
-        AccessDecision decision = new AccessDecision(AccessResult.AUTHORIZED, AccessEventType.ENTRY, sessionId, null);
-        AccessRequest request = new AccessRequest(AccessMethod.PLATE, "AB123CD", "device-1", null);
+        AccessDecision decision = new AccessDecision(AccessResult.AUTHORIZED, AccessEventType.ENTRY, sessionId, null, null);
+        AccessRequest request = new AccessRequest(AccessMethod.PLATE, "AB123CD", "device-1", null, null);
         when(plateStrategy.resolve(request)).thenReturn(decision);
         when(accessLogRepository.save(any(AccessLogEntity.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -67,8 +67,8 @@ class AccessServiceTest {
 
     @Test
     void resolveAccess_deniedWithoutSession_savesAccessLogWithNullParkingSession() {
-        AccessDecision decision = new AccessDecision(AccessResult.DENIED, AccessEventType.ENTRY, null, "Patente no registrada");
-        AccessRequest request = new AccessRequest(AccessMethod.PLATE, "ZZ999ZZ", "device-1", null);
+        AccessDecision decision = new AccessDecision(AccessResult.DENIED, AccessEventType.ENTRY, null, "Patente no registrada", null);
+        AccessRequest request = new AccessRequest(AccessMethod.PLATE, "ZZ999ZZ", "device-1", null, null);
         when(plateStrategy.resolve(request)).thenReturn(decision);
         when(accessLogRepository.save(any(AccessLogEntity.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -84,8 +84,8 @@ class AccessServiceTest {
 
     @Test
     void resolveAccess_occurredAtNull_defaultsToNow() {
-        AccessDecision decision = new AccessDecision(AccessResult.AUTHORIZED, AccessEventType.ENTRY, UUID.randomUUID(), null);
-        AccessRequest request = new AccessRequest(AccessMethod.PLATE, "AB123CD", "device-1", null);
+        AccessDecision decision = new AccessDecision(AccessResult.AUTHORIZED, AccessEventType.ENTRY, UUID.randomUUID(), null, null);
+        AccessRequest request = new AccessRequest(AccessMethod.PLATE, "AB123CD", "device-1", null, null);
         when(plateStrategy.resolve(request)).thenReturn(decision);
         when(accessLogRepository.save(any(AccessLogEntity.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -101,8 +101,8 @@ class AccessServiceTest {
     @Test
     void resolveAccess_occurredAtProvided_isPreserved() {
         LocalDateTime occurredAt = LocalDateTime.now().minusMinutes(5);
-        AccessDecision decision = new AccessDecision(AccessResult.AUTHORIZED, AccessEventType.ENTRY, UUID.randomUUID(), null);
-        AccessRequest request = new AccessRequest(AccessMethod.PLATE, "AB123CD", "device-1", occurredAt);
+        AccessDecision decision = new AccessDecision(AccessResult.AUTHORIZED, AccessEventType.ENTRY, UUID.randomUUID(), null, null);
+        AccessRequest request = new AccessRequest(AccessMethod.PLATE, "AB123CD", "device-1", occurredAt, null);
         when(plateStrategy.resolve(request)).thenReturn(decision);
         when(accessLogRepository.save(any(AccessLogEntity.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -115,7 +115,7 @@ class AccessServiceTest {
 
     @Test
     void resolveAccess_noStrategyForMethod_throwsIllegalArgumentException() {
-        AccessRequest request = new AccessRequest(AccessMethod.TICKET, "T-1", "device-1", null);
+        AccessRequest request = new AccessRequest(AccessMethod.TICKET, "T-1", "device-1", null, null);
 
         assertThatThrownBy(() -> accessService.resolveAccess(request))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -125,7 +125,7 @@ class AccessServiceTest {
 
     @Test
     void resolveAccess_nullAccessMethod_throwsIllegalArgumentException() {
-        AccessRequest request = new AccessRequest(null, "AB123CD", "device-1", null);
+        AccessRequest request = new AccessRequest(null, "AB123CD", "device-1", null, null);
 
         assertThatThrownBy(() -> accessService.resolveAccess(request))
                 .isInstanceOf(IllegalArgumentException.class);

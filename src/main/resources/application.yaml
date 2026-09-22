@@ -16,6 +16,11 @@ spring:
       resourceserver:
         jwt:
           issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/Parko}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:user}
+    password: ${RABBITMQ_PASSWORD:password}
 
 keycloak:
   token-uri: ${KEYCLOAK_TOKEN_URI:http://localhost:8180/realms/Parko/protocol/openid-connect/token}
@@ -25,5 +30,12 @@ keycloak:
 balance-service:
   base-url: ${BALANCE_SERVICE_URL:http://localhost:8082}
 
+external-gateway:
+  base-url: ${EXTERNAL_GATEWAY_URL:http://localhost:8085}
+
 parking:
   entry-fee: ${PARKING_ENTRY_FEE:1500}
+  visitor-entry-fee: ${PARKING_VISITOR_ENTRY_FEE:10}
+
+access-service:
+  public-base-url: ${ACCESS_SERVICE_PUBLIC_URL:http://localhost:8081}

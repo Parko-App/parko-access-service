@@ -38,8 +38,8 @@ class AccessControllerTest {
 
     @Test
     void resolveAccess_authorized_returnsOk() throws Exception {
-        AccessRequest request = new AccessRequest(AccessMethod.PLATE, "AB123CD", "device-1", null);
-        AccessResponse response = new AccessResponse(AccessResult.AUTHORIZED, AccessEventType.ENTRY, null);
+        AccessRequest request = new AccessRequest(AccessMethod.PLATE, "AB123CD", "device-1", null, null);
+        AccessResponse response = new AccessResponse(AccessResult.AUTHORIZED, AccessEventType.ENTRY, null, null);
         when(accessService.resolveAccess(any(AccessRequest.class))).thenReturn(response);
 
         mockMvc.perform(post("/api/v1/access")
@@ -52,8 +52,8 @@ class AccessControllerTest {
 
     @Test
     void resolveAccess_denied_stillReturnsOk() throws Exception {
-        AccessRequest request = new AccessRequest(AccessMethod.PLATE, "ZZ999ZZ", "device-1", null);
-        AccessResponse response = new AccessResponse(AccessResult.DENIED, AccessEventType.ENTRY, "Patente no registrada: ZZ999ZZ");
+        AccessRequest request = new AccessRequest(AccessMethod.PLATE, "ZZ999ZZ", "device-1", null, null);
+        AccessResponse response = new AccessResponse(AccessResult.DENIED, AccessEventType.ENTRY, "Patente no registrada: ZZ999ZZ", null);
         when(accessService.resolveAccess(any(AccessRequest.class))).thenReturn(response);
 
         mockMvc.perform(post("/api/v1/access")
@@ -65,7 +65,7 @@ class AccessControllerTest {
 
     @Test
     void resolveAccess_serviceThrowsIllegalArgument_returnsBadRequest() throws Exception {
-        AccessRequest request = new AccessRequest(null, "AB123CD", "device-1", null);
+        AccessRequest request = new AccessRequest(null, "AB123CD", "device-1", null, null);
         when(accessService.resolveAccess(any(AccessRequest.class)))
                 .thenThrow(new IllegalArgumentException("No hay estrategia registrada para null"));
 
@@ -77,7 +77,7 @@ class AccessControllerTest {
 
     @Test
     void resolveAccess_serviceThrowsForUnknownIdentifier_returnsBadRequest() throws Exception {
-        AccessRequest request = new AccessRequest(AccessMethod.PLATE, "", "device-1", null);
+        AccessRequest request = new AccessRequest(AccessMethod.PLATE, "", "device-1", null, null);
         when(accessService.resolveAccess(any(AccessRequest.class)))
                 .thenThrow(new IllegalArgumentException("La patente es requerida para el método PLATE"));
 

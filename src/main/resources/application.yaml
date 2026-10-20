@@ -36,6 +36,10 @@ external-gateway:
 parking:
   entry-fee: ${PARKING_ENTRY_FEE:1500}
   visitor-entry-fee: ${PARKING_VISITOR_ENTRY_FEE:10}
+  capacity: ${PARKING_CAPACITY:300}
+
+firebase:
+  project-id: ${FIREBASE_PROJECT_ID:parko-2271f}
 
 access-service:
   public-base-url: ${ACCESS_SERVICE_PUBLIC_URL:http://localhost:8081}

@@ -36,7 +36,6 @@ public class SecurityConfig {
                 .securityMatcher("/api/v1/access/occupancy/**")
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        // el stream SSE termina con un dispatch ASYNC sin credenciales; el REQUEST inicial ya se autenticó
                         .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(firebaseJwtDecoder(firebaseProjectId))))

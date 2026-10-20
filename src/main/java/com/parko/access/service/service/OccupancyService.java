@@ -56,7 +56,6 @@ public class OccupancyService {
                     SseEmitter.event().name(OCCUPANCY_EVENT).data(getCurrent(), MediaType.APPLICATION_JSON);
             emitters.forEach(emitter -> send(emitter, event));
         } catch (RuntimeException e) {
-            // la ocupación es informativa: un fallo acá no debe romper el flujo de acceso
             log.error("Fallo al publicar la ocupación: {}", e.getMessage(), e);
         }
     }

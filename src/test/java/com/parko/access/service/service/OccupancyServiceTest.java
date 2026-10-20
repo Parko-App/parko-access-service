@@ -63,7 +63,6 @@ class OccupancyServiceTest {
 
         occupancyService.publishCurrent();
 
-        // una vez por el snapshot inicial al suscribirse, otra por la publicación
         verify(parkingSessionRepository, times(2)).countByStatus(SessionStatus.ACTIVE);
     }
 }

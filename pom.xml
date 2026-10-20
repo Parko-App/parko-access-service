@@ -49,7 +49,7 @@
 		<dependency>
 			<groupId>com.parko</groupId>
 			<artifactId>persistence.core</artifactId>
-			<version>0.0.5</version>
+			<version>0.0.7</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

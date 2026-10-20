@@ -36,12 +36,39 @@ class AccessServiceTest {
     @Mock
     private AccessLogRepository accessLogRepository;
 
+    @Mock
+    private OccupancyService occupancyService;
+
     private AccessService accessService;
 
     @BeforeEach
     void setUp() {
         when(plateStrategy.supports()).thenReturn(AccessMethod.PLATE);
-        accessService = new AccessService(List.of(plateStrategy), accessLogRepository);
+        accessService = new AccessService(List.of(plateStrategy), accessLogRepository, occupancyService);
+    }
+
+    @Test
+    void resolveAccess_authorized_publishesOccupancy() {
+        AccessDecision decision = new AccessDecision(AccessResult.AUTHORIZED, AccessEventType.ENTRY, UUID.randomUUID(), null, null);
+        AccessRequest request = new AccessRequest(AccessMethod.PLATE, "AB123CD", "device-1", null, null);
+        when(plateStrategy.resolve(request)).thenReturn(decision);
+        when(accessLogRepository.save(any(AccessLogEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        accessService.resolveAccess(request);
+
+        verify(occupancyService).publishCurrent();
+    }
+
+    @Test
+    void resolveAccess_denied_doesNotPublishOccupancy() {
+        AccessDecision decision = new AccessDecision(AccessResult.DENIED, AccessEventType.ENTRY, null, "Patente no registrada", null);
+        AccessRequest request = new AccessRequest(AccessMethod.PLATE, "ZZ999ZZ", "device-1", null, null);
+        when(plateStrategy.resolve(request)).thenReturn(decision);
+        when(accessLogRepository.save(any(AccessLogEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        accessService.resolveAccess(request);
+
+        verify(occupancyService, never()).publishCurrent();
     }
 
     @Test

@@ -42,3 +42,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PACKAGES_READ_TOKEN: ${{ secrets.PACKAGES_READ_TOKEN }}
+          # Valores dummy: solo para que cargue el contexto de Spring en ApplicationTests.
+          # Los tests no llaman a Keycloak (KeycloakTokenService se prueba con mocks).
+          KEYCLOAK_CLIENT_ID: access-service-ci
+          KEYCLOAK_CLIENT_SECRET: ci-dummy-secret

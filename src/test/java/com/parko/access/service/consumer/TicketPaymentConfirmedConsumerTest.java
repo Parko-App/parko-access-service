@@ -3,8 +3,12 @@ package com.parko.access.service.consumer;
 import com.parko.access.service.event.TicketPaymentConfirmedMessage;
 import com.parko.domain.lib.model.TicketStatus;
 import com.parko.persistence.core.model.entity.ParkingSessionEntity;
+import com.parko.domain.lib.model.TransactionStatus;
+import com.parko.domain.lib.model.TransactionType;
 import com.parko.persistence.core.model.entity.TicketEntity;
+import com.parko.persistence.core.model.entity.TransactionEntity;
 import com.parko.persistence.core.repository.TicketRepository;
+import com.parko.persistence.core.repository.TransactionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,11 +35,14 @@ class TicketPaymentConfirmedConsumerTest {
     @Mock
     private TicketRepository ticketRepository;
 
+    @Mock
+    private TransactionRepository transactionRepository;
+
     private TicketPaymentConfirmedConsumer consumer;
 
     @BeforeEach
     void setUp() {
-        consumer = new TicketPaymentConfirmedConsumer(ticketRepository);
+        consumer = new TicketPaymentConfirmedConsumer(ticketRepository, transactionRepository);
     }
 
     private TicketEntity ticketWith(UUID parkingSessionId, TicketStatus status) {
@@ -70,6 +77,27 @@ class TicketPaymentConfirmedConsumerTest {
     }
 
     @Test
+    void onPaymentConfirmed_recordsCompletedChargeTransaction() {
+        UUID parkingSessionId = UUID.randomUUID();
+        TicketEntity ticket = ticketWith(parkingSessionId, TicketStatus.PENDING_PAYMENT);
+        when(ticketRepository.findByParkingSession_Id(parkingSessionId)).thenReturn(Optional.of(ticket));
+
+        consumer.onPaymentConfirmed(new TicketPaymentConfirmedMessage(parkingSessionId, BigDecimal.valueOf(3000)));
+
+        ArgumentCaptor<TransactionEntity> captor = ArgumentCaptor.forClass(TransactionEntity.class);
+        verify(transactionRepository).save(captor.capture());
+        TransactionEntity payment = captor.getValue();
+        assertThat(payment.getId()).isNotNull();
+        assertThat(payment.getParkingSession()).isSameAs(ticket.getParkingSession());
+        assertThat(payment.getBalanceAccount()).isNull();
+        assertThat(payment.getType()).isEqualTo(TransactionType.CHARGE);
+        assertThat(payment.getStatus()).isEqualTo(TransactionStatus.COMPLETED);
+        assertThat(payment.getAmount()).isEqualByComparingTo("3000");
+        assertThat(payment.getPaymentProvider()).isEqualTo("MERCADO_PAGO");
+        assertThat(payment.getCreatedAt()).isEqualTo(ticket.getPaidAt());
+    }
+
+    @Test
     void onPaymentConfirmed_throws_whenTicketNotFound() {
         UUID parkingSessionId = UUID.randomUUID();
         when(ticketRepository.findByParkingSession_Id(parkingSessionId)).thenReturn(Optional.empty());
@@ -80,6 +108,7 @@ class TicketPaymentConfirmedConsumerTest {
                 .isInstanceOf(NoSuchElementException.class);
 
         verify(ticketRepository, never()).save(any());
+        verify(transactionRepository, never()).save(any());
     }
 
     @Test
@@ -91,5 +120,6 @@ class TicketPaymentConfirmedConsumerTest {
         consumer.onPaymentConfirmed(new TicketPaymentConfirmedMessage(parkingSessionId, BigDecimal.valueOf(3000)));
 
         verify(ticketRepository, never()).save(any());
+        verify(transactionRepository, never()).save(any());
     }
 }

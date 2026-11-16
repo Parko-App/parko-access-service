@@ -39,7 +39,6 @@ public class TicketService {
         return switch (ticket.getStatus()) {
             case PAID -> TicketPaymentResolution.alreadyPaid();
             case USED, CANCELLED -> TicketPaymentResolution.unavailable(ticket.getStatus());
-            // cada llamada sobre un ticket pendiente crea una preferencia en Mercado Pago: se limita por ticket
             case PENDING_PAYMENT -> paymentLinkRateLimiter.tryAcquire(parkingSessionId)
                     ? TicketPaymentResolution.redirect(createCheckout(parkingSessionId))
                     : TicketPaymentResolution.rateLimited();

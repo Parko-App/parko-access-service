@@ -12,17 +12,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * Limita cuantas veces por ventana se puede pedir el link de pago de un mismo ticket.
- * <p>
- * {@code GET /api/v1/access/sessions/{id}/pay} es publico (lo abre el visitante desde el QR sin cuenta) y cada
- * llamada sobre un ticket pendiente le pide al gateway que cree una preferencia nueva en Mercado Pago. Sin
- * limite, cualquiera con un id valido podia generar preferencias sin tope.
- * <p>
- * El estado es en memoria (una sola instancia de access-service) y esta acotado: solo se registran tickets
- * pendientes que existen y se descartan los menos usados al superar {@value #MAX_TRACKED_TICKETS}.
- * Un maximo de 0 o negativo desactiva el limite.
- */
 @Component
 public class PaymentLinkRateLimiter {
 
@@ -51,7 +40,6 @@ public class PaymentLinkRateLimiter {
         };
     }
 
-    /** Registra el intento y devuelve true si esta dentro del limite; false si hay que rechazarlo. */
     public synchronized boolean tryAcquire(UUID ticketKey) {
         if (maxRequests <= 0) {
             return true;

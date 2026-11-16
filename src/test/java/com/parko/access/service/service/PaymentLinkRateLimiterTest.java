@@ -13,7 +13,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class PaymentLinkRateLimiterTest {
 
-    /** Reloj que se mueve a mano para probar la ventana sin esperar. */
     private static final class MutableClock extends Clock {
         private Instant now = Instant.parse("2026-11-15T20:00:00Z");
 
@@ -107,7 +106,6 @@ class PaymentLinkRateLimiterTest {
         limiter.tryAcquire(UUID.randomUUID());
         limiter.tryAcquire(UUID.randomUUID());
 
-        // "first" fue descartado (se superaron los 2 tickets rastreados): vuelve a empezar de cero
         assertThat(limiter.tryAcquire(first)).isTrue();
     }
 }

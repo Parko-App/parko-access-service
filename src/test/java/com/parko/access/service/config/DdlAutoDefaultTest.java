@@ -9,7 +9,6 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** H7: el servicio no debe modificar el esquema por defecto; solo se vuelve a "update" por variable de entorno. */
 class DdlAutoDefaultTest {
 
     @Test

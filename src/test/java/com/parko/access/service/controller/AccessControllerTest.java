@@ -76,6 +76,23 @@ class AccessControllerTest {
     }
 
     @Test
+    void resolveAccess_invalidAccessMethodEnum_returnsBadRequest_notServerError() throws Exception {
+        mockMvc.perform(post("/api/v1/access")
+                        .contentType("application/json")
+                        .content("{\"accessMethod\":\"NOPE\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("El cuerpo de la solicitud es inválido"));
+    }
+
+    @Test
+    void resolveAccess_malformedJsonBody_returnsBadRequest_notServerError() throws Exception {
+        mockMvc.perform(post("/api/v1/access")
+                        .contentType("application/json")
+                        .content("{esto no es json"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void resolveAccess_serviceThrowsForUnknownIdentifier_returnsBadRequest() throws Exception {
         AccessRequest request = new AccessRequest(AccessMethod.PLATE, "", "device-1", null, null);
         when(accessService.resolveAccess(any(AccessRequest.class)))

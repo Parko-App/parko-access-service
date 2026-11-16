@@ -46,3 +46,5 @@ jobs:
           # Los tests no llaman a Keycloak (KeycloakTokenService se prueba con mocks).
           KEYCLOAK_CLIENT_ID: access-service-ci
           KEYCLOAK_CLIENT_SECRET: ci-dummy-secret
+          # El Postgres del CI arranca vacio y el servicio usa ddl-auto=validate por defecto: aca se crean las tablas.
+          HIBERNATE_DDL_AUTO: update

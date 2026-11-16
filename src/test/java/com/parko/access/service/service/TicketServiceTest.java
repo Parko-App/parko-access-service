@@ -32,11 +32,14 @@ class TicketServiceTest {
     @Mock
     private ExternalGatewayClient externalGatewayClient;
 
+    @Mock
+    private PaymentLinkRateLimiter paymentLinkRateLimiter;
+
     private TicketService ticketService;
 
     @BeforeEach
     void setUp() {
-        ticketService = new TicketService(ticketRepository, externalGatewayClient, VISITOR_ENTRY_FEE);
+        ticketService = new TicketService(ticketRepository, externalGatewayClient, paymentLinkRateLimiter, VISITOR_ENTRY_FEE);
     }
 
     private TicketEntity ticket(TicketStatus status) {
@@ -94,6 +97,7 @@ class TicketServiceTest {
         UUID parkingSessionId = UUID.randomUUID();
         when(ticketRepository.findByParkingSession_Id(parkingSessionId))
                 .thenReturn(Optional.of(ticket(TicketStatus.PENDING_PAYMENT)));
+        when(paymentLinkRateLimiter.tryAcquire(parkingSessionId)).thenReturn(true);
         when(externalGatewayClient.createTicketPayment(new TicketPaymentRequest(parkingSessionId, VISITOR_ENTRY_FEE)))
                 .thenReturn(new TicketPaymentPreferenceResponse("pref-1", "https://mp.com/checkout", "https://mp.com/sandbox"));
 
@@ -101,5 +105,31 @@ class TicketServiceTest {
 
         assertThat(resolution.outcome()).isEqualTo(TicketPaymentResolution.Outcome.REDIRECT);
         assertThat(resolution.checkoutUrl()).isEqualTo("https://mp.com/checkout");
+    }
+
+    @Test
+    void resolvePayment_ticketPending_isRateLimited_andDoesNotCreateAnotherCheckout() {
+        UUID parkingSessionId = UUID.randomUUID();
+        when(ticketRepository.findByParkingSession_Id(parkingSessionId))
+                .thenReturn(Optional.of(ticket(TicketStatus.PENDING_PAYMENT)));
+        when(paymentLinkRateLimiter.tryAcquire(parkingSessionId)).thenReturn(false);
+
+        TicketPaymentResolution resolution = ticketService.resolvePayment(parkingSessionId);
+
+        assertThat(resolution.outcome()).isEqualTo(TicketPaymentResolution.Outcome.RATE_LIMITED);
+        verify(externalGatewayClient, never()).createTicketPayment(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void resolvePayment_paidOrUsedTickets_doNotConsumeTheRateLimit() {
+        UUID paid = UUID.randomUUID();
+        UUID used = UUID.randomUUID();
+        when(ticketRepository.findByParkingSession_Id(paid)).thenReturn(Optional.of(ticket(TicketStatus.PAID)));
+        when(ticketRepository.findByParkingSession_Id(used)).thenReturn(Optional.of(ticket(TicketStatus.USED)));
+
+        ticketService.resolvePayment(paid);
+        ticketService.resolvePayment(used);
+
+        verify(paymentLinkRateLimiter, never()).tryAcquire(org.mockito.ArgumentMatchers.any());
     }
 }

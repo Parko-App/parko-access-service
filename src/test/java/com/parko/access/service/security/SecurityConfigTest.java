@@ -80,6 +80,14 @@ class SecurityConfigTest {
     }
 
     @Test
+    void unknownPath_withoutToken_returns401_insteadOfBeingPublic() throws Exception {
+        mockMvc.perform(get("/api/v1/ruta/que/no/existe"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/otra/cosa"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void payLookalikePath_withoutToken_stayProtected() throws Exception {
         mockMvc.perform(get("/api/v1/access/sessions/" + UUID.randomUUID() + "/pay/extra"))
                 .andExpect(status().isUnauthorized());

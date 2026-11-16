@@ -55,6 +55,15 @@ class TicketPaymentControllerTest {
     }
 
     @Test
+    void pay_rateLimited_returns429WithMessage() throws Exception {
+        UUID parkingSessionId = UUID.randomUUID();
+        when(ticketService.resolvePayment(parkingSessionId)).thenReturn(TicketPaymentResolution.rateLimited());
+
+        mockMvc.perform(get("/api/v1/access/sessions/" + parkingSessionId + "/pay"))
+                .andExpect(status().isTooManyRequests());
+    }
+
+    @Test
     void pay_ticketPending_redirectsToCheckout() throws Exception {
         UUID parkingSessionId = UUID.randomUUID();
         when(ticketService.resolvePayment(parkingSessionId))

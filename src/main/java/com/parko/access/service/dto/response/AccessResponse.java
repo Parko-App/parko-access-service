@@ -6,6 +6,7 @@ import com.parko.domain.lib.model.AccessResult;
 public record AccessResponse(
         AccessResult result,
         AccessEventType eventType,
-        String message
+        String message,
+        String ticketPdf
 ) {
 }

@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/access")
+@RequestMapping("/api/v1/access")
 public class AccessController {
 
     private final AccessService accessService;

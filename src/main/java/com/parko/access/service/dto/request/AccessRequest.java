@@ -8,6 +8,7 @@ public record AccessRequest(
         AccessMethod accessMethod,
         String identifier,
         String deviceId,
-        LocalDateTime occurredAt
+        LocalDateTime occurredAt,
+        String visitorPlate
 ) {
 }

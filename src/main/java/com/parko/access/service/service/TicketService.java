@@ -16,13 +16,16 @@ public class TicketService {
 
     private final TicketRepository ticketRepository;
     private final ExternalGatewayClient externalGatewayClient;
+    private final PaymentLinkRateLimiter paymentLinkRateLimiter;
     private final BigDecimal visitorEntryFee;
 
     public TicketService(TicketRepository ticketRepository,
                           ExternalGatewayClient externalGatewayClient,
+                          PaymentLinkRateLimiter paymentLinkRateLimiter,
                           @Value("${parking.visitor-entry-fee}") BigDecimal visitorEntryFee) {
         this.ticketRepository = ticketRepository;
         this.externalGatewayClient = externalGatewayClient;
+        this.paymentLinkRateLimiter = paymentLinkRateLimiter;
         this.visitorEntryFee = visitorEntryFee;
     }
 
@@ -36,7 +39,9 @@ public class TicketService {
         return switch (ticket.getStatus()) {
             case PAID -> TicketPaymentResolution.alreadyPaid();
             case USED, CANCELLED -> TicketPaymentResolution.unavailable(ticket.getStatus());
-            case PENDING_PAYMENT -> TicketPaymentResolution.redirect(createCheckout(parkingSessionId));
+            case PENDING_PAYMENT -> paymentLinkRateLimiter.tryAcquire(parkingSessionId)
+                    ? TicketPaymentResolution.redirect(createCheckout(parkingSessionId))
+                    : TicketPaymentResolution.rateLimited();
         };
     }
 

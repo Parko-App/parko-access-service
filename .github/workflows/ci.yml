@@ -46,3 +46,4 @@ jobs:
           # Los tests no llaman a Keycloak (KeycloakTokenService se prueba con mocks).
           KEYCLOAK_CLIENT_ID: access-service-ci
           KEYCLOAK_CLIENT_SECRET: ci-dummy-secret
+          HIBERNATE_DDL_AUTO: update

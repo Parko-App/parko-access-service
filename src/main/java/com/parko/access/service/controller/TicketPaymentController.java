@@ -29,6 +29,7 @@ public class TicketPaymentController {
             case NOT_FOUND -> ResponseEntity.notFound().build();
             case ALREADY_PAID -> ResponseEntity.ok(resolution.message());
             case UNAVAILABLE -> ResponseEntity.status(HttpStatus.CONFLICT).body(resolution.message());
+            case RATE_LIMITED -> ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(resolution.message());
             case REDIRECT -> ResponseEntity.status(HttpStatus.FOUND)
                     .location(URI.create(resolution.checkoutUrl()))
                     .build();

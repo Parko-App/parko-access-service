@@ -8,7 +8,13 @@ public record TicketPaymentResolution(Outcome outcome, String message, String ch
         NOT_FOUND,
         ALREADY_PAID,
         UNAVAILABLE,
-        REDIRECT
+        REDIRECT,
+        RATE_LIMITED
+    }
+
+    public static TicketPaymentResolution rateLimited() {
+        return new TicketPaymentResolution(Outcome.RATE_LIMITED,
+                "Demasiados intentos de pago para este ticket. Esperá un momento y volvé a intentar.", null);
     }
 
     public static TicketPaymentResolution notFound() {

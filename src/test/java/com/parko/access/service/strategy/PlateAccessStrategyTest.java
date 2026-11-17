@@ -3,6 +3,7 @@ package com.parko.access.service.strategy;
 import com.parko.access.service.client.BalanceClient;
 import com.parko.access.service.dto.balance.ChargeRequest;
 import com.parko.access.service.dto.request.AccessRequest;
+import com.parko.access.service.service.VisitorAccessService;
 import com.parko.domain.lib.model.AccessEventType;
 import com.parko.domain.lib.model.AccessMethod;
 import com.parko.domain.lib.model.AccessResult;
@@ -59,12 +60,15 @@ class PlateAccessStrategyTest {
     @Mock
     private BalanceClient balanceClient;
 
+    @Mock
+    private VisitorAccessService visitorAccessService;
+
     private PlateAccessStrategy strategy;
 
     @BeforeEach
     void setUp() {
         strategy = new PlateAccessStrategy(vehicleRepository, parkingSessionRepository,
-                transactionRepository, ticketRepository, balanceClient, ENTRY_FEE);
+                transactionRepository, ticketRepository, balanceClient, visitorAccessService, ENTRY_FEE);
     }
 
     private VehicleEntity vehicleWithUser(UUID vehicleId, UUID userId) {
@@ -221,34 +225,62 @@ class PlateAccessStrategyTest {
     }
 
     @Test
-    void resolve_plateNotRegistered_returnsDeniedWithoutCreatingSession() {
+    void resolve_plateNotRegistered_delegatesToVisitorEntry() {
         String plate = "ZZ999ZZ";
+        AccessDecision visitorEntry = new AccessDecision(
+                AccessResult.AUTHORIZED, AccessEventType.ENTRY, UUID.randomUUID(), null, new byte[]{1});
         when(parkingSessionRepository.findByPlateSnapshotAndStatus(plate, SessionStatus.ACTIVE))
                 .thenReturn(Optional.empty());
+        when(visitorAccessService.findActiveSessionByPlate(plate)).thenReturn(Optional.empty());
         when(vehicleRepository.findByPlate(plate)).thenReturn(Optional.empty());
+        when(visitorAccessService.enter(plate)).thenReturn(visitorEntry);
 
         AccessDecision decision = strategy.resolve(request(plate));
 
-        assertThat(decision.result()).isEqualTo(AccessResult.DENIED);
-        assertThat(decision.eventType()).isEqualTo(AccessEventType.ENTRY);
-        assertThat(decision.parkingSessionId()).isNull();
+        assertThat(decision).isSameAs(visitorEntry);
         verify(parkingSessionRepository, never()).save(any());
+        verify(balanceClient, never()).charge(any());
     }
 
     @Test
-    void resolve_vehicleInactive_returnsDenied() {
+    void resolve_vehicleInactive_delegatesToVisitorEntry() {
         String plate = "AB123CD";
         VehicleEntity vehicle = new VehicleEntity();
         vehicle.setId(UUID.randomUUID());
         vehicle.setActive(false);
+        AccessDecision visitorEntry = new AccessDecision(
+                AccessResult.AUTHORIZED, AccessEventType.ENTRY, UUID.randomUUID(), null, new byte[]{1});
         when(parkingSessionRepository.findByPlateSnapshotAndStatus(plate, SessionStatus.ACTIVE))
                 .thenReturn(Optional.empty());
+        when(visitorAccessService.findActiveSessionByPlate(plate)).thenReturn(Optional.empty());
         when(vehicleRepository.findByPlate(plate)).thenReturn(Optional.of(vehicle));
+        when(visitorAccessService.enter(plate)).thenReturn(visitorEntry);
 
         AccessDecision decision = strategy.resolve(request(plate));
 
-        assertThat(decision.result()).isEqualTo(AccessResult.DENIED);
+        assertThat(decision).isSameAs(visitorEntry);
         verify(parkingSessionRepository, never()).save(any());
+    }
+
+    @Test
+    void resolve_activeVisitorSession_delegatesToReturningVisitorWithoutLookingUpVehicle() {
+        String plate = "ZZ999ZZ";
+        ParkingSessionEntity visitorSession = new ParkingSessionEntity();
+        visitorSession.setId(UUID.randomUUID());
+        visitorSession.setVisitorPlate(plate);
+        visitorSession.setStatus(SessionStatus.ACTIVE);
+        AccessDecision returning = new AccessDecision(
+                AccessResult.AUTHORIZED, AccessEventType.EXIT, visitorSession.getId(), null, null);
+        when(parkingSessionRepository.findByPlateSnapshotAndStatus(plate, SessionStatus.ACTIVE))
+                .thenReturn(Optional.empty());
+        when(visitorAccessService.findActiveSessionByPlate(plate)).thenReturn(Optional.of(visitorSession));
+        when(visitorAccessService.resolveReturningVisitor(visitorSession)).thenReturn(returning);
+
+        AccessDecision decision = strategy.resolve(request(plate));
+
+        assertThat(decision).isSameAs(returning);
+        verify(vehicleRepository, never()).findByPlate(any());
+        verify(visitorAccessService, never()).enter(any());
     }
 
     @Test

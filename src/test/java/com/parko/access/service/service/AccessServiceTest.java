@@ -72,6 +72,23 @@ class AccessServiceTest {
     }
 
     @Test
+    void resolveAccess_replayedDecision_doesNotSaveAccessLogNorPublishOccupancyButReturnsPdf() {
+        byte[] pdf = {1, 2, 3};
+        AccessDecision decision = new AccessDecision(
+                AccessResult.AUTHORIZED, AccessEventType.ENTRY, UUID.randomUUID(), null, pdf, true);
+        AccessRequest request = new AccessRequest(AccessMethod.PLATE, "AB123CD", "device-1", null, null);
+        when(plateStrategy.resolve(request)).thenReturn(decision);
+
+        AccessResponse response = accessService.resolveAccess(request);
+
+        assertThat(response.result()).isEqualTo(AccessResult.AUTHORIZED);
+        assertThat(response.eventType()).isEqualTo(AccessEventType.ENTRY);
+        assertThat(response.ticketPdf()).isEqualTo(java.util.Base64.getEncoder().encodeToString(pdf));
+        verify(accessLogRepository, never()).save(any());
+        verify(occupancyService, never()).publishCurrent();
+    }
+
+    @Test
     void resolveAccess_authorizedEntry_savesAccessLogAndReturnsResponse() {
         UUID sessionId = UUID.randomUUID();
         AccessDecision decision = new AccessDecision(AccessResult.AUTHORIZED, AccessEventType.ENTRY, sessionId, null, null);

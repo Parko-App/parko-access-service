@@ -2,6 +2,7 @@ package com.parko.access.service.strategy;
 
 import com.parko.access.service.dto.request.AccessRequest;
 import com.parko.access.service.pdf.TicketPdfService;
+import com.parko.access.service.service.VisitorAccessService;
 import com.parko.domain.lib.model.AccessEventType;
 import com.parko.domain.lib.model.AccessMethod;
 import com.parko.domain.lib.model.AccessResult;
@@ -19,7 +20,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.LocalDateTime;
+import java.time.Duration;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -48,7 +49,9 @@ class TotemAccessStrategyTest {
 
     @BeforeEach
     void setUp() {
-        strategy = new TotemAccessStrategy(parkingSessionRepository, ticketRepository, ticketPdfService, PUBLIC_BASE_URL);
+        VisitorAccessService visitorAccessService = new VisitorAccessService(
+                parkingSessionRepository, ticketRepository, ticketPdfService, PUBLIC_BASE_URL, Duration.ofSeconds(60));
+        strategy = new TotemAccessStrategy(visitorAccessService);
     }
 
     private AccessRequest request(String identifier) {

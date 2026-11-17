@@ -5,6 +5,7 @@ import com.parko.access.service.converter.ParkingSessionConverter;
 import com.parko.access.service.converter.TicketConverter;
 import com.parko.access.service.dto.balance.ChargeRequest;
 import com.parko.access.service.dto.request.AccessRequest;
+import com.parko.access.service.service.VisitorAccessService;
 import com.parko.domain.lib.model.AccessEventType;
 import com.parko.domain.lib.model.AccessMethod;
 import com.parko.domain.lib.model.AccessResult;
@@ -44,6 +45,7 @@ public class PlateAccessStrategy implements AccessResolutionStrategy {
     private final TransactionRepository transactionRepository;
     private final TicketRepository ticketRepository;
     private final BalanceClient balanceClient;
+    private final VisitorAccessService visitorAccessService;
     private final BigDecimal entryFee;
 
     public PlateAccessStrategy(VehicleRepository vehicleRepository,
@@ -51,12 +53,14 @@ public class PlateAccessStrategy implements AccessResolutionStrategy {
                                 TransactionRepository transactionRepository,
                                 TicketRepository ticketRepository,
                                 BalanceClient balanceClient,
+                                VisitorAccessService visitorAccessService,
                                 @Value("${parking.entry-fee}") BigDecimal entryFee) {
         this.vehicleRepository = vehicleRepository;
         this.parkingSessionRepository = parkingSessionRepository;
         this.transactionRepository = transactionRepository;
         this.ticketRepository = ticketRepository;
         this.balanceClient = balanceClient;
+        this.visitorAccessService = visitorAccessService;
         this.entryFee = entryFee;
     }
 
@@ -78,10 +82,14 @@ public class PlateAccessStrategy implements AccessResolutionStrategy {
             return resolveExit(activeSession.get());
         }
 
-        Optional<VehicleEntity> vehicle = vehicleRepository.findByPlate(plate).filter(VehicleEntity::isActive);
-        return vehicle.map(vehicleEntity -> resolveEntry(vehicleEntity, plate)).orElseGet(() -> new AccessDecision(AccessResult.DENIED, AccessEventType.ENTRY, null,
-                "Patente no registrada: " + plate, null));
+        Optional<ParkingSessionEntity> visitorSession = visitorAccessService.findActiveSessionByPlate(plate);
+        if (visitorSession.isPresent()) {
+            return visitorAccessService.resolveReturningVisitor(visitorSession.get());
+        }
 
+        Optional<VehicleEntity> vehicle = vehicleRepository.findByPlate(plate).filter(VehicleEntity::isActive);
+        return vehicle.map(vehicleEntity -> resolveEntry(vehicleEntity, plate))
+                .orElseGet(() -> visitorAccessService.enter(plate));
     }
 
     private AccessDecision resolveExit(ParkingSessionEntity sessionEntity) {

@@ -10,6 +10,12 @@ public record AccessDecision(
         AccessEventType eventType,
         UUID parkingSessionId,
         String message,
-        byte[] ticketPdf
+        byte[] ticketPdf,
+        boolean replayed
 ) {
+
+    public AccessDecision(AccessResult result, AccessEventType eventType, UUID parkingSessionId,
+                          String message, byte[] ticketPdf) {
+        this(result, eventType, parkingSessionId, message, ticketPdf, false);
+    }
 }

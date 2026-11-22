@@ -149,7 +149,6 @@ public class PlateAccessStrategy implements AccessResolutionStrategy {
             UUID operationId = balanceClient.charge(new ChargeRequest(vehicle.getUser().getId(), parkingSessionId, entryFee));
             return transactionRepository.findById(operationId).map(TransactionEntity::getStatus);
         } catch (RuntimeException e) {
-            // el cobro es best-effort en la entrada (la barrera abre igual); en la salida, sin cobro completado no se abre
             log.error("Fallo al cobrar el estacionamiento para parkingSessionId={}: {}", parkingSessionId, e.getMessage(), e);
             return Optional.empty();
         }

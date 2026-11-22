@@ -100,7 +100,7 @@
 			<groupId>com.ngrok</groupId>
 			<artifactId>ngrok-java-native</artifactId>
 			<version>1.1.1</version>
-			<classifier>${os.detected.classifier}</classifier>
+			<classifier>windows-x86_64</classifier>
 			<scope>runtime</scope>
 		</dependency>
 		<dependency>
@@ -163,13 +163,6 @@
 	</dependencyManagement>
 
 	<build>
-		<extensions>
-			<extension>
-				<groupId>kr.motd.maven</groupId>
-				<artifactId>os-maven-plugin</artifactId>
-				<version>1.7.1</version>
-			</extension>
-		</extensions>
 		<plugins>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>

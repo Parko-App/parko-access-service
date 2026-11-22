@@ -13,10 +13,6 @@ import org.springframework.stereotype.Component;
 
 import java.net.URL;
 
-/**
- * Expone access-service en el dominio público de ngrok para que el visitante
- * pueda abrir desde el celular el link de pago del QR del ticket.
- */
 @Component
 @ConditionalOnProperty(name = "ngrok.enabled", havingValue = "true")
 public class NgrokTunnelRunner {

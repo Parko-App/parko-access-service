@@ -39,6 +39,8 @@ import java.util.UUID;
 public class PlateAccessStrategy implements AccessResolutionStrategy {
 
     private static final Logger log = LoggerFactory.getLogger(PlateAccessStrategy.class);
+    private static final String UNPAID_EXIT_MESSAGE =
+            "Estacionamiento no pagado: cargá saldo o pagá en administración para poder salir";
 
     private final VehicleRepository vehicleRepository;
     private final ParkingSessionRepository parkingSessionRepository;
@@ -93,18 +95,21 @@ public class PlateAccessStrategy implements AccessResolutionStrategy {
     }
 
     private AccessDecision resolveExit(ParkingSessionEntity sessionEntity) {
+        boolean alreadyPaid = transactionRepository.existsByParkingSession_IdAndTypeAndStatus(
+                sessionEntity.getId(), TransactionType.CHARGE, TransactionStatus.COMPLETED);
+        if (!alreadyPaid) {
+            boolean charged = chargeEntryFeeAndUpdateTicket(sessionEntity.getVehicle(), sessionEntity.getId());
+            if (!charged) {
+                return new AccessDecision(AccessResult.DENIED, AccessEventType.EXIT, sessionEntity.getId(),
+                        UNPAID_EXIT_MESSAGE, null);
+            }
+        }
+
         LocalDateTime exitAt = LocalDateTime.now();
         sessionEntity.setStatus(SessionStatus.COMPLETED);
         sessionEntity.setExitAt(exitAt);
         sessionEntity.setUpdatedAt(exitAt);
         parkingSessionRepository.save(sessionEntity);
-
-        boolean alreadyPaid = transactionRepository.existsByParkingSession_IdAndTypeAndStatus(
-                sessionEntity.getId(), TransactionType.CHARGE, TransactionStatus.COMPLETED);
-        if (!alreadyPaid) {
-            // reintento del cobro que quedó PENDING en la entrada (saldo insuficiente en ese momento)
-            chargeEntryFeeAndUpdateTicket(sessionEntity.getVehicle(), sessionEntity.getId());
-        }
 
         return new AccessDecision(AccessResult.AUTHORIZED, AccessEventType.EXIT, sessionEntity.getId(), null, null);
     }
@@ -130,11 +135,13 @@ public class PlateAccessStrategy implements AccessResolutionStrategy {
         ticketRepository.save(entity);
     }
 
-    private void chargeEntryFeeAndUpdateTicket(VehicleEntity vehicle, UUID parkingSessionId) {
+    private boolean chargeEntryFeeAndUpdateTicket(VehicleEntity vehicle, UUID parkingSessionId) {
         Optional<TransactionStatus> resultStatus = chargeEntryFee(vehicle, parkingSessionId);
-        if (resultStatus.filter(status -> status == TransactionStatus.COMPLETED).isPresent()) {
+        boolean completed = resultStatus.filter(status -> status == TransactionStatus.COMPLETED).isPresent();
+        if (completed) {
             markTicketAsPaid(parkingSessionId);
         }
+        return completed;
     }
 
     private Optional<TransactionStatus> chargeEntryFee(VehicleEntity vehicle, UUID parkingSessionId) {
@@ -142,7 +149,6 @@ public class PlateAccessStrategy implements AccessResolutionStrategy {
             UUID operationId = balanceClient.charge(new ChargeRequest(vehicle.getUser().getId(), parkingSessionId, entryFee));
             return transactionRepository.findById(operationId).map(TransactionEntity::getStatus);
         } catch (RuntimeException e) {
-            // el cobro es best-effort: la barrera abre igual (ADR 0001, saldo irrelevante para abrir), la transacción queda sin registrar
             log.error("Fallo al cobrar el estacionamiento para parkingSessionId={}: {}", parkingSessionId, e.getMessage(), e);
             return Optional.empty();
         }

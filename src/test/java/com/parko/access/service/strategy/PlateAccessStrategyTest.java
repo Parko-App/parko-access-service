@@ -91,20 +91,16 @@ class PlateAccessStrategyTest {
     }
 
     @Test
-    void resolve_activeSessionExistsAndUnpaid_completesSessionAndRetriesCharge() {
+    void resolve_activeSessionUnpaidAndRetryCompletes_completesSessionAndAuthorizesExit() {
         String plate = "AB123CD";
-        UUID vehicleId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
-        ParkingSessionEntity session = new ParkingSessionEntity();
-        session.setId(UUID.randomUUID());
-        session.setPlateSnapshot(plate);
-        session.setStatus(SessionStatus.ACTIVE);
-        session.setVehicle(vehicleWithUser(vehicleId, userId));
-        when(parkingSessionRepository.findByPlateSnapshotAndStatus(plate, SessionStatus.ACTIVE))
-                .thenReturn(Optional.of(session));
-        when(transactionRepository.existsByParkingSession_IdAndTypeAndStatus(
-                session.getId(), TransactionType.CHARGE, TransactionStatus.COMPLETED))
-                .thenReturn(false);
+        UUID operationId = UUID.randomUUID();
+        ParkingSessionEntity session = unpaidActiveSession(plate, userId);
+        TicketEntity ticket = new TicketEntity();
+        ticket.setStatus(TicketStatus.PENDING_PAYMENT);
+        when(ticketRepository.findByParkingSession_Id(session.getId())).thenReturn(Optional.of(ticket));
+        when(balanceClient.charge(any())).thenReturn(operationId);
+        when(transactionRepository.findById(operationId)).thenReturn(Optional.of(transactionWithStatus(TransactionStatus.COMPLETED)));
 
         AccessDecision decision = strategy.resolve(request(plate));
 
@@ -113,9 +109,64 @@ class PlateAccessStrategyTest {
         assertThat(decision.parkingSessionId()).isEqualTo(session.getId());
         assertThat(session.getStatus()).isEqualTo(SessionStatus.COMPLETED);
         assertThat(session.getExitAt()).isNotNull();
+        assertThat(ticket.getStatus()).isEqualTo(TicketStatus.PAID);
         verify(parkingSessionRepository).save(session);
         verify(vehicleRepository, never()).findByPlate(any());
         verify(balanceClient).charge(new ChargeRequest(userId, session.getId(), ENTRY_FEE));
+    }
+
+    @Test
+    void resolve_activeSessionUnpaidAndRetryStaysPending_deniesExitAndKeepsSessionActive() {
+        String plate = "AB123CD";
+        UUID operationId = UUID.randomUUID();
+        ParkingSessionEntity session = unpaidActiveSession(plate, UUID.randomUUID());
+        when(balanceClient.charge(any())).thenReturn(operationId);
+        when(transactionRepository.findById(operationId)).thenReturn(Optional.of(transactionWithStatus(TransactionStatus.PENDING)));
+
+        AccessDecision decision = strategy.resolve(request(plate));
+
+        assertThat(decision.result()).isEqualTo(AccessResult.DENIED);
+        assertThat(decision.eventType()).isEqualTo(AccessEventType.EXIT);
+        assertThat(decision.parkingSessionId()).isEqualTo(session.getId());
+        assertThat(decision.message()).isNotBlank();
+        assertThat(session.getStatus()).isEqualTo(SessionStatus.ACTIVE);
+        assertThat(session.getExitAt()).isNull();
+        verify(parkingSessionRepository, never()).save(any());
+        verify(ticketRepository, never()).save(any());
+    }
+
+    @Test
+    void resolve_activeSessionUnpaidAndBalanceServiceFails_deniesExitAndKeepsSessionActive() {
+        String plate = "AB123CD";
+        ParkingSessionEntity session = unpaidActiveSession(plate, UUID.randomUUID());
+        when(balanceClient.charge(any())).thenThrow(new RuntimeException("balance-service no disponible"));
+
+        AccessDecision decision = strategy.resolve(request(plate));
+
+        assertThat(decision.result()).isEqualTo(AccessResult.DENIED);
+        assertThat(decision.eventType()).isEqualTo(AccessEventType.EXIT);
+        assertThat(session.getStatus()).isEqualTo(SessionStatus.ACTIVE);
+        verify(parkingSessionRepository, never()).save(any());
+    }
+
+    private ParkingSessionEntity unpaidActiveSession(String plate, UUID userId) {
+        ParkingSessionEntity session = new ParkingSessionEntity();
+        session.setId(UUID.randomUUID());
+        session.setPlateSnapshot(plate);
+        session.setStatus(SessionStatus.ACTIVE);
+        session.setVehicle(vehicleWithUser(UUID.randomUUID(), userId));
+        when(parkingSessionRepository.findByPlateSnapshotAndStatus(plate, SessionStatus.ACTIVE))
+                .thenReturn(Optional.of(session));
+        when(transactionRepository.existsByParkingSession_IdAndTypeAndStatus(
+                session.getId(), TransactionType.CHARGE, TransactionStatus.COMPLETED))
+                .thenReturn(false);
+        return session;
+    }
+
+    private TransactionEntity transactionWithStatus(TransactionStatus status) {
+        TransactionEntity transaction = new TransactionEntity();
+        transaction.setStatus(status);
+        return transaction;
     }
 
     @Test

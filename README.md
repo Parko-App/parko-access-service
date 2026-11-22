@@ -77,6 +77,20 @@ export KEYCLOAK_CLIENT_SECRET=<secret del paso anterior>
 
 El resto tiene default apuntando a `localhost` (`DB_URL`, `KEYCLOAK_ISSUER_URI`, `KEYCLOAK_TOKEN_URI`, `BALANCE_SERVICE_URL`, `PARKING_ENTRY_FEE`) — pisar solo si tu setup difiere.
 
+#### Túnel ngrok (QR de pago de visitantes)
+
+Al arrancar, la app abre un túnel ngrok en `parko.ngrok-free.dev` hacia el puerto 8081, para que el visitante pueda abrir desde el celular el link de pago del QR (`/api/v1/access/sessions/{id}/pay`). Requiere:
+
+```bash
+export NGROK_AUTHTOKEN=<authtoken de dashboard.ngrok.com>
+```
+
+| Variable | Default | Uso |
+|---|---|---|
+| `NGROK_ENABLED` | `true` | `false` para no abrir el túnel |
+| `NGROK_DOMAIN` | `parko.ngrok-free.dev` | Dominio del túnel |
+| `ACCESS_SERVICE_PUBLIC_URL` | `https://${NGROK_DOMAIN}` | Base de la URL que se guarda en el QR del ticket |
+
 ### 6. Levantar la app
 
 ```bash

@@ -42,8 +42,12 @@ firebase:
   project-id: ${FIREBASE_PROJECT_ID:parko-2271f}
 
 access-service:
-  public-base-url: ${ACCESS_SERVICE_PUBLIC_URL:http://localhost:8081}
+  public-base-url: ${ACCESS_SERVICE_PUBLIC_URL:https://${ngrok.domain}}
   entry-idempotency-window: ${ENTRY_IDEMPOTENCY_WINDOW:PT60S}
   pay-rate-limit:
     max-requests: ${PAY_RATE_LIMIT_MAX_REQUESTS:5}
     window: ${PAY_RATE_LIMIT_WINDOW:PT1M}
+
+ngrok:
+  enabled: ${NGROK_ENABLED:true}
+  domain: ${NGROK_DOMAIN:parko.ngrok-free.dev}
